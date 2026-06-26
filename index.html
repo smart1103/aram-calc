@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚔️ ARAM 정산기</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', sans-serif; background: #0a0c16; color: #c8cad8; font-size: 14px; }
+button { cursor: pointer; font-family: inherit; font-size: inherit; }
+input, textarea { font-family: inherit; font-size: inherit; }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: #2a2f45; border-radius: 4px; }
+
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #0f1220; border-bottom: 1px solid #1e2235; }
+.tabs { display: flex; background: #0f1220; border-bottom: 1px solid #1e2235; }
+.tab { flex: 1; padding: 12px 0; font-size: 12px; font-weight: 500; border: none; border-bottom: 2px solid transparent; color: #5a6072; background: none; cursor: pointer; }
+.tab.active { border-bottom-color: #C89B3C; color: #C89B3C; }
+.main { flex: 1; overflow-y: auto; padding: 16px; padding-bottom: 40px; }
+
+.card { border-radius: 12px; padding: 14px; background: #141825; border: 1px solid #1e2235; margin-bottom: 12px; }
+.row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.btn-gold { font-weight: 700; padding: 6px 12px; border-radius: 8px; font-size: 12px; background: #C89B3C; color: #0a0c16; border: none; cursor: pointer; }
+.btn-plain { padding: 12px; border-radius: 12px; font-size: 12px; background: #0f1220; color: #7a8099; border: 1px solid #1e2235; cursor: pointer; width: 100%; }
+.btn-rm { color: #3a3f52; font-size: 11px; background: none; border: none; cursor: pointer; }
+.btn-rm:hover { color: #c0392b; }
+.btn-share { padding: 5px 10px; border-radius: 8px; font-size: 11px; background: #1a2040; border: 1px solid #1e2235; color: #8a90a8; cursor: pointer; }
+
+.game-grid { display: grid; grid-template-columns: 1fr 24px 1fr; gap: 6px; }
+.team-box { padding: 8px; border-radius: 8px; font-size: 12px; }
+.team-box .label { font-size: 11px; color: #5a6072; margin-bottom: 4px; }
+.team-box.win-a { background: rgba(30,80,180,0.25); border: 1px solid #2a5ab8; }
+.team-box.win-b { background: rgba(180,30,40,0.2); border: 1px solid #a82a38; }
+.team-box.nw { background: #0f1220; border: 1px solid #1e2235; }
+.vs-divider { display: flex; align-items: center; justify-content: center; color: #2a2f45; font-size: 10px; }
+.truncate { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+.player-row { border-radius: 12px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; background: #141825; border: 1px solid #1e2235; margin-bottom: 8px; }
+
+.bar-wrap { flex: 1; border-radius: 9999px; overflow: hidden; height: 14px; background: #0f1220; }
+.bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+
+.settle-row { display: flex; align-items: center; justify-content: space-between; border-radius: 8px; padding: 10px 12px; background: #0f1220; border: 1px solid #1e2235; margin-bottom: 8px; }
+
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.88); z-index: 50; display: flex; align-items: flex-end; }
+.overlay-scroll { position: fixed; inset: 0; background: rgba(0,0,0,0.88); z-index: 50; overflow-y: auto; }
+.sheet { width: 100%; border-radius: 16px 16px 0 0; padding: 20px; background: #141825; border-top: 1px solid #2a2f45; max-height: 85vh; overflow-y: auto; }
+.sheet-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+.sheet-sub { color: #4a5068; font-size: 11px; margin-bottom: 16px; }
+
+.bet-presets { display: flex; gap: 6px; margin-bottom: 8px; }
+.preset { flex: 1; padding: 6px 0; border-radius: 8px; font-size: 12px; font-weight: 600; border: 1px solid #1e2235; background: #0f1220; color: #5a6072; cursor: pointer; }
+.preset.on { background: #C89B3C; color: #0a0c16; border-color: #C89B3C; }
+
+.player-team-row { display: flex; justify-content: space-between; align-items: center; background: #141825; padding: 10px 12px; border-radius: 12px; border: 1px solid #1e2235; margin-bottom: 8px; }
+.team-toggle-group { display: flex; background: #0f1220; border-radius: 8px; padding: 3px; border: 1px solid #1e2235; width: 140px; gap: 2px; }
+.team-toggle-btn { flex: 1; padding: 6px 0; font-size: 11px; font-weight: 700; text-align: center; border-radius: 6px; border: none; background: transparent; color: #5a6072; cursor: pointer; transition: 0.15s; }
+.team-toggle-btn.a.on { background: #1e4dba; color: #a8c4f0; }
+.team-toggle-btn.b.on { background: #8b1a24; color: #f0a8b0; }
+.team-toggle-btn.none.on { background: #2a2f45; color: #c8cad8; }
+
+.win-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.wbtn { padding: 12px; border-radius: 12px; font-weight: 700; font-size: 13px; cursor: pointer; }
+.wbtn.a { background: #1e4dba; color: #a8c4f0; border: 1px solid #2a5ab8; }
+.wbtn.b { background: #8b1a24; color: #f0a8b0; border: 1px solid #a82a38; }
+.wbtn.off { background: #0f1220; color: #3a3f52; border: 1px solid #1e2235; }
+
+.act-btns { display: flex; gap: 8px; margin-top: 12px; }
+.act-cancel { flex: 1; padding: 12px; border-radius: 12px; font-size: 12px; background: #0f1220; color: #7a8099; border: 1px solid #1e2235; cursor: pointer; }
+.act-ok { flex: 2; padding: 12px; border-radius: 12px; font-size: 12px; font-weight: 700; background: #C89B3C; color: #0a0c16; border: none; cursor: pointer; }
+.act-ok:disabled { background: #3a3000; color: #5a4800; cursor: default; }
+.act-danger { flex: 1; padding: 8px; border-radius: 8px; font-size: 12px; font-weight: 700; background: #c0392b; color: #fff; border: none; cursor: pointer; }
+
+.inp { width: 100%; border-radius: 12px; padding: 10px 16px; font-size: 13px; outline: none; background: #0f1220; border: 1px solid #2a2f45; color: #c8cad8; display: block; }
+.inp-num { width: 100%; border-radius: 12px; padding: 8px 12px; font-size: 13px; text-align: right; outline: none; background: #0f1220; border: 1px solid #2a2f45; color: #c8cad8; display: block; }
+.textarea { width: 100%; height: 100px; border-radius: 8px; padding: 8px 10px; font-size: 10px; font-family: monospace; word-break: break-all; resize: none; outline: none; background: #0f1220; border: 1px solid #1e2235; color: #7a8099; display: block; }
+
+.room-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(135deg, #0a0c16 0%, #0f1220 100%); }
+.room-box { width: 100%; max-width: 320px; text-align: center; }
+.inp-code { width: 100%; border-radius: 12px; padding: 12px 16px; text-align: center; font-family: monospace; font-size: 22px; letter-spacing: 0.3em; outline: none; background: #141825; border: 1px solid #2a2f45; color: #e8e0d0; display: block; margin-bottom: 10px; }
+.btn-enter { width: 100%; font-weight: 700; padding: 12px; border-radius: 12px; margin-bottom: 8px; font-size: 14px; background: #C89B3C; color: #0a0c16; border: none; cursor: pointer; }
+.btn-enter:disabled { background: #3a3000; color: #5a4800; cursor: default; }
+.btn-newroom { width: 100%; padding: 12px; border-radius: 12px; font-size: 13px; background: #141825; border: 1px solid #2a2f45; color: #7a8099; cursor: pointer; }
+
+.recent-btn { width: 100%; padding: 8px 12px; border-radius: 8px; font-size: 12px; background: #141825; border: 1px solid #1e2235; color: #9aa0b8; display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 8px; }
+.share-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.stab { flex: 1; padding: 8px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.stab.on { background: #C89B3C; color: #0a0c16; border: 1px solid #C89B3C; }
+.stab.off { background: #0f1220; color: #5a6072; border: 1px solid #1e2235; }
+.reset-confirm { border-radius: 12px; padding: 16px; background: #141825; border: 1px solid #5a1a1a; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/* ── 헬퍼 ───────────────────────────────────────────────────── */
+const LS = {
+  get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set: (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+function encode(obj) {
+  const bytes = new TextEncoder().encode(JSON.stringify(obj));
+  let bin=''; for (let i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function decode(b64) {
+  try {
+    const bin=atob(b64.trim()), bytes=new Uint8Array(bin.length);
+    for (let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch { return null; }
+}
+function calcBal(players, games) {
+  const b=Object.fromEntries(players.map(p=>[p.id,0]));
+  for (const g of games) {
+    const W=g.winner==='a'?g.teamA:g.teamB, L=g.winner==='a'?g.teamB:g.teamA;
+    if (!W.length||!L.length) continue;
+    const pot=L.length*g.bet;
+    W.forEach(id=>{if(id in b)b[id]+=pot/W.length;});
+    L.forEach(id=>{if(id in b)b[id]-=g.bet;});
+  }
+  return b;
+}
+function calcSettle(players, bal) {
+  const c=[],d=[];
+  players.forEach(p=>{const v=Math.round(bal[p.id]||0);if(v>0)c.push({name:p.name,v});else if(v<0)d.push({name:p.name,v});});
+  c.sort((a,b)=>b.v-a.v); d.sort((a,b)=>a.v-b.v);
+  const txs=[]; let ci=0,di=0;
+  while(ci<c.length&&di<d.length){const amt=Math.min(c[ci].v,-d[di].v);if(amt>=1)txs.push({from:d[di].name,to:c[ci].name,amount:amt});c[ci].v-=amt;d[di].v+=amt;if(c[ci].v<1)ci++;if(d[di].v>-1)di++;}
+  return txs;
+}
+const fmtW=n=>(n>=0?'+':'')+Math.round(n).toLocaleString()+'원';
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+/* ── 상태 ───────────────────────────────────────────────────── */
+let S = {
+  room:null, roomInp:'',
+  recentRooms: LS.get('aram-rooms')||[],
+  sess:{players:[],games:[],defaultBet:2000},
+  tab:'games',
+  showG:false, showP:false, showShare:false,
+  shareMode:'export', importStr:'', copyMsg:'',
+  pname:'',
+  ng:{teamA:[],teamB:[],winner:null,bet:2000},
+  confirmReset:false,
+};
+
+function enterRoom(code) {
+  code = code.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const rooms=[code,...S.recentRooms.filter(r=>r!==code)].slice(0,5);
+  S.recentRooms=rooms; LS.set('aram-rooms',rooms);
+  S.room=code; S.tab='games'; S.showG=false; S.showP=false; S.showShare=false;
+  S.sess=LS.get('aram-v3-'+code)||{players:[],games:[],defaultBet:2000};
+  render();
+}
+function saveSession(s) { S.sess=s; if(S.room)LS.set('aram-v3-'+S.room,s); render(); }
+function setState(patch) { Object.assign(S,patch); render(); }
+
+/* ── HTML 생성 ──────────────────────────────────────────────── */
+function renderBetInput(value, prefix) {
+  const P=prefix||'', presets=[1000,2000,3000,5000];
+  return `
+    <div style="color:#5a6072;font-size:11px;margin-bottom:8px">1인당 배팅 (원) <span style="color:#3a3f52;font-size:10px">균등 팀이면 항상 딱 떨어집니다</span></div>
+    <div class="bet-presets">
+      ${presets.map(a=>`<button class="preset${value===a?' on':''}" data-action="${P}set-bet" data-bet="${a}">${a>=1000?a/1000+'천':a}</button>`).join('')}
+    </div>
+    <input id="${P}betInput" class="inp-num" type="number" value="${value}" min="0" step="500" placeholder="직접 입력 (원)">`;
+}
+
+function renderRoomEntry() {
+  return `<div class="room-page"><div class="room-box">
+    <div style="font-size:52px;margin-bottom:12px">⚔️</div>
+    <h1 style="color:#C89B3C;font-size:22px;font-weight:700;letter-spacing:1px;margin-bottom:4px">ARAM 정산기</h1>
+    <p style="color:#5a6072;font-size:12px;margin-bottom:28px">방 코드로 세션을 구분합니다</p>
+    <input id="roomInp" class="inp-code" placeholder="방 코드" value="${esc(S.roomInp)}" maxlength="8">
+    <button id="btnEnter" class="btn-enter" data-action="enter-room" ${S.roomInp.length<4?'disabled':''}>입장</button>
+    <button class="btn-newroom" data-action="new-room">🎲 새 방 만들기</button>
+    ${S.recentRooms.length?`<div style="margin-top:24px"><div style="color:#3a3f52;font-size:11px;margin-bottom:8px">최근 세션</div>
+      ${S.recentRooms.map(r=>`<button class="recent-btn" data-action="recent-room" data-id="${r}"><span style="font-family:monospace;letter-spacing:2px">${r}</span><span style="color:#3a3f52;font-size:10px">▶ 입장</span></button>`).join('')}
+    </div>`:''}
+    <p style="color:#3a3f52;font-size:10px;margin-top:20px;line-height:1.7">💾 데이터는 이 기기 브라우저에 저장됩니다<br>🔗 공유하려면 앱 내 📤 공유 기능을 이용하세요</p>
+  </div></div>`;
+}
+
+function renderGamesTab() {
+  const {sess}=S;
+  const pOf=id=>esc(sess.players.find(p=>p.id===id)?.name||'?');
+  return `<div class="row"><span style="color:#4a5068;font-size:12px">총 ${sess.games.length}판 기록</span>
+    <button class="btn-gold" data-action="open-add-game">+ 게임 추가</button></div>
+    ${sess.games.length===0?`<div style="text-align:center;padding-top:64px;color:#2a2f45"><div style="font-size:40px;margin-bottom:8px">🎮</div><p style="font-size:12px">게임 결과를 추가해주세요</p></div>`:
+    [...sess.games].reverse().map(g=>{
+      const aw=g.winner==='a';
+      return `<div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-weight:700;color:#C89B3C">${g.num}판</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="color:#4a5068;font-size:11px">1인당 ${g.bet.toLocaleString()}원</span>
+            <button class="btn-rm" data-action="remove-game" data-id="${g.id}">✕</button>
+          </div>
+        </div>
+        <div class="game-grid">
+          <div class="team-box ${aw?'win-a':'nw'}"><div class="label">팀 A ${aw?'🏆':''}</div>${g.teamA.map(id=>`<div class="truncate" style="color:${aw?'#a8c4f0':'#7a8099'}">${pOf(id)}</div>`).join('')}</div>
+          <div class="vs-divider">VS</div>
+          <div class="team-box ${!aw?'win-b':'nw'}"><div class="label">팀 B ${!aw?'🏆':''}</div>${g.teamB.map(id=>`<div class="truncate" style="color:${!aw?'#f0a8b0':'#7a8099'}">${pOf(id)}</div>`).join('')}</div>
+        </div>
+      </div>`;
+    }).join('')}`;
+}
+
+function renderPlayersTab(bal) {
+  const {sess}=S;
+  return `<div class="row"><span style="color:#4a5068;font-size:12px">${sess.players.length}명 등록됨</span>
+    <button class="btn-gold" data-action="open-add-player">+ 참가자 추가</button></div>
+    ${sess.players.length===0?`<div style="text-align:center;padding-top:64px;color:#2a2f45"><div style="font-size:40px;margin-bottom:8px">👥</div><p style="font-size:12px">참가자를 추가해주세요</p></div>`:
+    sess.players.map(p=>{
+      const b=Math.round(bal[p.id]||0);
+      const pl=sess.games.filter(g=>[...g.teamA,...g.teamB].includes(p.id));
+      const wn=pl.filter(g=>(g.winner==='a'?g.teamA:g.teamB).includes(p.id)).length;
+      return `<div class="player-row">
+        <div><div style="font-weight:500">${esc(p.name)}</div><div style="color:#4a5068;font-size:11px;margin-top:2px">${pl.length}판 ${wn}승 ${pl.length-wn}패</div></div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-weight:700;font-size:12px;color:${b>=0?'#4ade80':'#f87171'}">${fmtW(b)}</span>
+          <button class="btn-rm" data-action="remove-player" data-id="${p.id}">✕</button>
+        </div>
+      </div>`;
+    }).join('')}`;
+}
+
+function renderSettleTab(bal, settle) {
+  const {sess}=S;
+  const mx=Math.max(...sess.players.map(p=>Math.abs(bal[p.id]||0)),1);
+  const sorted=[...sess.players].sort((a,b)=>(bal[b.id]||0)-(bal[a.id]||0));
+  return `
+    ${sess.players.length?`<div class="card">
+      <div style="color:#5a6072;font-size:11px;margin-bottom:12px">개인 수지</div>
+      ${sorted.map(p=>{const b=Math.round(bal[p.id]||0);return`<div class="bar-row">
+        <div style="width:52px;text-align:right;font-size:11px;color:#9aa0b8;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(p.name)}</div>
+        <div class="bar-wrap"><div style="width:${Math.abs(b)/mx*100}%;height:100%;border-radius:9999px;background:${b>0?'linear-gradient(90deg,#16a34a,#4ade80)':b<0?'linear-gradient(90deg,#c0392b,#f87171)':'transparent'}"></div></div>
+        <div style="width:72px;text-align:right;font-size:11px;font-weight:500;color:${b>=0?'#4ade80':'#f87171'}">${fmtW(b)}</div>
+      </div>`;}).join('')}
+    </div>`:''}
+    <div class="card">
+      <div style="color:#5a6072;font-size:11px;margin-bottom:10px">송금 목록${settle.length?`<span style="color:#C89B3C;margin-left:6px">${settle.length}건</span>`:''}</div>
+      ${settle.length===0?`<div style="text-align:center;padding:16px 0;color:#2a2f45;font-size:12px">${sess.games.length===0?'게임을 추가해주세요':'✅ 모두 정산됨'}</div>`:
+      settle.map(t=>`<div class="settle-row">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-weight:500;color:#f87171">${esc(t.from)}</span>
+          <span style="color:#3a3f52;font-size:11px">→</span>
+          <span style="font-weight:500;color:#4ade80">${esc(t.to)}</span>
+        </div>
+        <span style="font-weight:700;color:#C89B3C">${t.amount.toLocaleString()}원</span>
+      </div>`).join('')}
+    </div>
+    ${sess.games.length?(!S.confirmReset
+      ?`<button class="btn-plain" style="font-size:12px;color:#3a3f52" data-action="show-reset">게임 기록 초기화</button>`
+      :`<div class="reset-confirm"><p style="text-align:center;color:#9aa0b8;font-size:12px;margin-bottom:12px">게임 기록을 초기화할까요?<br><span style="color:#5a6072;font-size:11px">참가자 목록은 유지됩니다</span></p>
+        <div style="display:flex;gap:8px">
+          <button class="act-cancel" data-action="cancel-reset">취소</button>
+          <button class="act-danger" data-action="do-reset">초기화</button>
+        </div></div>`):''}`;
+}
+
+function renderApp() {
+  const {sess,tab}=S;
+  const bal=calcBal(sess.players,sess.games);
+  const settle=calcSettle(sess.players,bal);
+  const tabHtml=tab==='games'?renderGamesTab():tab==='players'?renderPlayersTab(bal):renderSettleTab(bal,settle);
+
+  /* 공유 모달 */
+  const shareMod=S.showShare?`<div class="overlay" onclick="if(event.target===this)setState({showShare:false})">
+    <div class="sheet">
+      <div class="sheet-title">공유 기능</div>
+      <div class="sheet-sub">세션 데이터를 내보내거나 불러옵니다</div>
+      <div class="share-tabs">
+        <button class="stab ${S.shareMode==='export'?'on':'off'}" data-action="share-tab" data-mode="export">📤 내보내기</button>
+        <button class="stab ${S.shareMode==='import'?'on':'off'}" data-action="share-tab" data-mode="import">📥 가져오기</button>
+      </div>
+      ${S.shareMode==='export'?`
+        <div style="color:#5a6072;font-size:11px;margin-bottom:8px">아래 코드를 복사해서 카카오톡 등으로 공유하세요</div>
+        <textarea class="textarea" readonly onclick="this.select()">${encode(sess)}</textarea>
+        <div class="act-btns">
+          <button class="act-cancel" data-action="close-share">닫기</button>
+          <button class="act-ok" data-action="copy-code">${S.copyMsg||'📋 클립보드 복사'}</button>
+        </div>
+      `:`
+        <div style="color:#5a6072;font-size:11px;margin-bottom:8px">공유받은 코드를 붙여넣기 하세요 (Ctrl+V)</div>
+        <textarea id="importStr" class="textarea" placeholder="코드를 여기에 붙여넣기...">${esc(S.importStr)}</textarea>
+        <div class="act-btns">
+          <button class="act-cancel" data-action="close-share">취소</button>
+          <button class="act-ok" data-action="do-import" ${!S.importStr.trim()?'disabled':''}>📥 불러오기</button>
+        </div>`}
+    </div>
+  </div>`:'';
+
+  /* 참가자 추가 모달 */
+  const playerMod=S.showP?`<div class="overlay">
+    <div class="sheet" style="max-height:none">
+      <div class="sheet-title" style="margin-bottom:12px">참가자 추가</div>
+      <input id="pnameInp" class="inp" placeholder="닉네임" value="${esc(S.pname)}" style="margin-bottom:12px">
+      <div class="act-btns">
+        <button class="act-cancel" data-action="close-add-player">취소</button>
+        <button class="act-ok" data-action="confirm-add-player">추가</button>
+      </div>
+    </div>
+  </div>`:'';
+
+  /* 게임 추가 모달 */
+  const gameMod=S.showG?`<div class="overlay-scroll">
+    <div style="display:flex;align-items:flex-end;min-height:100%">
+    <div class="sheet">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <div class="sheet-title">${sess.games.length+1}판 입력</div>
+        ${sess.games.length > 0 ? `<button class="btn-share" data-action="copy-prev-game">이전 판 불러오기 ↺</button>` : ''}
+      </div>
+      <div class="sheet-sub">팀 배정 후 승리팀 선택</div>
+      <div style="margin-bottom:20px">${renderBetInput(S.ng.bet,'ng-')}</div>
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <span style="color:#5a6072;font-size:11px">팀 배정</span>
+          <span style="color:#4a5068;font-size:11px">A:${S.ng.teamA.length}명 / B:${S.ng.teamB.length}명</span>
+        </div>
+        ${sess.players.length===0?`<p style="text-align:center;padding:12px;color:#3a3f52;font-size:12px">참가자를 먼저 추가해주세요</p>`:
+        sess.players.map(p=>{
+          const ia=S.ng.teamA.includes(p.id), ib=S.ng.teamB.includes(p.id);
+          return `<div class="player-team-row">
+            <span style="flex:1; font-size:14px; font-weight:600; color:${ia||ib?'#c8cad8':'#5a6072'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:10px;">${esc(p.name)}</span>
+            <div class="team-toggle-group">
+              <button class="team-toggle-btn a ${ia?'on':''}" data-action="set-team" data-side="a" data-id="${p.id}">A팀</button>
+              <button class="team-toggle-btn none ${(!ia && !ib)?'on':''}" data-action="set-team" data-side="none" data-id="${p.id}">제외</button>
+              <button class="team-toggle-btn b ${ib?'on':''}" data-action="set-team" data-side="b" data-id="${p.id}">B팀</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="margin-bottom:20px">
+        <div style="color:#5a6072;font-size:11px;margin-bottom:8px">승리팀</div>
+        <div class="win-btns">
+          <button class="wbtn ${S.ng.winner==='a'?'a':'off'}" data-action="set-winner" data-team="a">팀 A 승 🏆</button>
+          <button class="wbtn ${S.ng.winner==='b'?'b':'off'}" data-action="set-winner" data-team="b">팀 B 승 🏆</button>
+        </div>
+      </div>
+      <div class="act-btns">
+        <button class="act-cancel" data-action="close-add-game">취소</button>
+        <button class="act-ok" data-action="confirm-add-game" ${(!S.ng.winner||!S.ng.teamA.length||!S.ng.teamB.length)?'disabled':''}>저장</button>
+      </div>
+    </div>
+    </div>
+  </div>`:'';
+
+  return `<div class="app">
+    <header class="header">
+      <div>
+        <div style="color:#C89B3C;font-weight:700;font-size:15px">⚔️ ARAM 정산기</div>
+        <div style="color:#5a6072;font-size:11px;margin-top:2px">방: <span style="color:#9aa0b8;font-family:monospace">${S.room}</span>
+          <button data-action="leave" style="color:#3a3f52;font-size:10px;margin-left:8px;background:none;border:none;cursor:pointer">← 나가기</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="btn-share" data-action="open-share">📤 공유</button>
+        <div style="text-align:right;color:#4a5068;font-size:11px"><div>${sess.games.length}판</div><div>${sess.players.length}명</div></div>
+      </div>
+    </header>
+    <nav class="tabs">
+      <button class="tab${tab==='games'?' active':''}" data-action="set-tab" data-tab="games">게임</button>
+      <button class="tab${tab==='players'?' active':''}" data-action="set-tab" data-tab="players">참가자</button>
+      <button class="tab${tab==='settle'?' active':''}" data-action="set-tab" data-tab="settle">정산</button>
+    </nav>
+    <main class="main">${tabHtml}</main>
+    ${shareMod}${playerMod}${gameMod}
+  </div>`;
+}
+
+/* ── 렌더 ───────────────────────────────────────────────────── */
+function render() {
+  document.getElementById('root').innerHTML = S.room ? renderApp() : renderRoomEntry();
+  // 포커스 복원 (모달 입력창)
+  const pInp=document.getElementById('pnameInp'), iInp=document.getElementById('importStr');
+  if (pInp) { pInp.focus(); pInp.selectionStart=pInp.selectionEnd=pInp.value.length; }
+  else if (S.showShare && S.shareMode==='import' && iInp) iInp.focus();
+}
+
+/* ── 이벤트 ─────────────────────────────────────────────────── */
+document.addEventListener('click', function(e) {
+  const t=e.target.closest('[data-action]'); if(!t) return;
+  const {action,id,tab,side,team,mode,bet}=t.dataset;
+  switch(action) {
+    case 'enter-room': if(S.roomInp.length>=4) enterRoom(S.roomInp); break;
+    case 'new-room': {
+      const ch='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+      enterRoom(Array.from({length:6},()=>ch[Math.floor(Math.random()*32)]).join(''));
+      break;
+    }
+    case 'recent-room': enterRoom(id); break;
+    case 'leave': setState({room:null,roomInp:'',showG:false,showP:false,showShare:false}); break;
+    case 'set-tab': setState({tab,confirmReset:false}); break;
+    case 'open-share': setState({showShare:true,shareMode:'export',copyMsg:''}); break;
+    case 'close-share': setState({showShare:false,importStr:''}); break;
+    case 'share-tab': setState({shareMode:mode}); break;
+    case 'copy-code':
+      navigator.clipboard?.writeText(encode(S.sess)).then(()=>{setState({copyMsg:'✅ 복사됨!'});setTimeout(()=>setState({copyMsg:''}),2500);});
+      break;
+    case 'do-import': {
+      const data=decode(S.importStr);
+      if(!data){alert('잘못된 코드입니다');return;}
+      S.importStr=''; setState({showShare:false,importStr:''});
+      saveSession(data); break;
+    }
+    case 'open-add-player': setState({showP:true,pname:''}); break;
+    case 'close-add-player': setState({showP:false,pname:''}); break;
+    case 'confirm-add-player': {
+      const n=S.pname.trim(); if(!n) return;
+      saveSession({...S.sess,players:[...S.sess.players,{id:`${Date.now()}`,name:n}]});
+      setState({showP:false,pname:''}); break;
+    }
+    case 'remove-player': saveSession({...S.sess,players:S.sess.players.filter(p=>p.id!==id)}); break;
+    case 'def-set-bet': saveSession({...S.sess,defaultBet:parseInt(bet)}); break;
+    case 'open-add-game': setState({showG:true,ng:{teamA:[],teamB:[],winner:null,bet:S.sess.defaultBet}}); break;
+    case 'close-add-game': setState({showG:false}); break;
+    case 'copy-prev-game': {
+      if (!S.sess.games.length) return;
+      const prev = S.sess.games[S.sess.games.length - 1];
+      setState({ng:{...S.ng, teamA:[...prev.teamA], teamB:[...prev.teamB], bet:prev.bet}});
+      break;
+    }
+    case 'ng-set-bet': setState({ng:{...S.ng,bet:parseInt(bet)}}); break;
+    case 'set-team': {
+      const ng = {...S.ng};
+      ng.teamA = ng.teamA.filter(x => x !== id);
+      ng.teamB = ng.teamB.filter(x => x !== id);
+      if (side === 'a') ng.teamA.push(id);
+      else if (side === 'b') ng.teamB.push(id);
+      setState({ng});
+      break;
+    }
+    case 'set-winner': setState({ng:{...S.ng,winner:team}}); break;
+    case 'confirm-add-game': {
+      const {ng}=S; if(!ng.winner||!ng.teamA.length||!ng.teamB.length) return;
+      saveSession({...S.sess,games:[...S.sess.games,{id:`${Date.now()}`,num:S.sess.games.length+1,...ng}]});
+      setState({showG:false,ng:{teamA:[],teamB:[],winner:null,bet:S.sess.defaultBet}}); break;
+    }
+    case 'remove-game': saveSession({...S.sess,games:S.sess.games.filter(g=>g.id!==id).map((g,i)=>({...g,num:i+1}))}); break;
+    case 'show-reset': setState({confirmReset:true}); break;
+    case 'cancel-reset': setState({confirmReset:false}); break;
+    case 'do-reset': saveSession({...S.sess,games:[]}); setState({confirmReset:false}); break;
+  }
+});
+
+document.addEventListener('input', function(e) {
+  const {id,value}=e.target;
+  if (id==='roomInp') { S.roomInp=value.toUpperCase().replace(/[^A-Z0-9]/g,''); e.target.value=S.roomInp; const b=document.getElementById('btnEnter'); if(b) b.disabled=S.roomInp.length<4; }
+  if (id==='pnameInp') S.pname=value;
+  if (id==='importStr') S.importStr=value;
+  if (id==='ng-betInput') { const v=Math.max(0,parseInt(value)||0); S.ng={...S.ng,bet:v}; }
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key!=='Enter') return;
+  const {id}=e.target;
+  if (id==='roomInp' && S.roomInp.length>=4) enterRoom(S.roomInp);
+  if (id==='pnameInp') document.querySelector('[data-action="confirm-add-player"]')?.click();
+});
+
+render();
+</script>
+</body>
+</html>
