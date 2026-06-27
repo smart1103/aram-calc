@@ -207,11 +207,11 @@ function setState(patch){ Object.assign(S,patch); render(); }
 function showToast(msg){ S.toast=msg; render(); setTimeout(()=>{ if(S.toast===msg){S.toast=null;render();} },2400); }
 
 /* ── 세션 목록 ──────────────────────────────────────────────── */
-async function loadSessionList() {
+async function loadSessionList(openNewAfter) {
   setState({ view:'sessions', listError:null, showNewModal:false, showPinModal:false });
   try {
     const list = await sbListSessions();
-    setState({ sessionList:list, listError:null });
+    setState({ sessionList:list, listError:null, showNewModal: !!openNewAfter, newPin:'' });
   } catch(e) {
     setState({ sessionList:[], listError: '세션 목록을 불러오지 못했습니다. 인터넷 연결을 확인하세요.' });
   }
@@ -260,7 +260,7 @@ function enterSession(code, data, stamp, token, canEdit) {
 
 function leaveSession() {
   stopPolling();
-  S.code=null; S.token=null; S.canEdit=false;
+  S.code=null; S.token=null; S.canEdit=false; S.view='sessions';
   loadSessionList();
 }
 
@@ -310,9 +310,9 @@ async function doDeleteSession() {
     if (!ok) { showToast('삭제 실패: 권한 불일치'); return; }
     dropToken(S.code);
     stopPolling();
-    S.code=null; S.token=null; S.canEdit=false;
+    S.code=null; S.token=null; S.canEdit=false; S.view='sessions';
     showToast('세션이 삭제되었습니다');
-    loadSessionList();
+    loadSessionList(true);   // 삭제 후 새 세션 생성 모달 자동 표시
   } catch(e) { showToast('삭제 실패: ' + e.message); }
 }
 
@@ -350,6 +350,7 @@ function renderBetInput(value, prefix) {
 }
 
 function fmtSessionLabel(code) {
+  if (!code) return '';
   const m = code.match(/^(\d{4})-(\d{2})-(\d{2})(?:-(\d+))?$/);
   if (!m) return code;
   const [_, y, mo, d, n] = m;
