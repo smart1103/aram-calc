@@ -74,43 +74,54 @@ input, textarea { font-family: inherit; font-size: inherit; }
 
 .inp { width: 100%; border-radius: 12px; padding: 10px 16px; font-size: 13px; outline: none; background: #0f1220; border: 1px solid #2a2f45; color: #c8cad8; display: block; }
 .inp-num { width: 100%; border-radius: 12px; padding: 8px 12px; font-size: 13px; text-align: right; outline: none; background: #0f1220; border: 1px solid #2a2f45; color: #c8cad8; display: block; }
-.textarea { width: 100%; height: 100px; border-radius: 8px; padding: 8px 10px; font-size: 10px; font-family: monospace; word-break: break-all; resize: none; outline: none; background: #0f1220; border: 1px solid #1e2235; color: #7a8099; display: block; }
 
-.room-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(135deg, #0a0c16 0%, #0f1220 100%); }
-.room-box { width: 100%; max-width: 320px; text-align: center; }
-.inp-code { width: 100%; border-radius: 12px; padding: 12px 16px; text-align: center; font-family: monospace; font-size: 22px; letter-spacing: 0.3em; outline: none; background: #141825; border: 1px solid #2a2f45; color: #e8e0d0; display: block; margin-bottom: 10px; }
-.btn-enter { width: 100%; font-weight: 700; padding: 12px; border-radius: 12px; margin-bottom: 8px; font-size: 14px; background: #C89B3C; color: #0a0c16; border: none; cursor: pointer; }
-.btn-enter:disabled { background: #3a3000; color: #5a4800; cursor: default; }
-.btn-newroom { width: 100%; padding: 12px; border-radius: 12px; font-size: 13px; background: #141825; border: 1px solid #2a2f45; color: #7a8099; cursor: pointer; }
+.session-page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 40px 24px; background: linear-gradient(135deg, #0a0c16 0%, #0f1220 100%); }
+.session-box { width: 100%; max-width: 360px; }
+.session-card { width: 100%; padding: 14px 16px; border-radius: 12px; background: #141825; border: 1px solid #1e2235; color: #c8cad8; display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 8px; }
+.session-card:hover { border-color: #2a3050; }
+.btn-new-session { width: 100%; font-weight: 700; padding: 14px; border-radius: 12px; margin-bottom: 20px; font-size: 14px; background: #C89B3C; color: #0a0c16; border: none; cursor: pointer; }
 
-.recent-btn { width: 100%; padding: 8px 12px; border-radius: 8px; font-size: 12px; background: #141825; border: 1px solid #1e2235; color: #9aa0b8; display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 8px; }
-.share-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
-.stab { flex: 1; padding: 8px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
-.stab.on { background: #C89B3C; color: #0a0c16; border: 1px solid #C89B3C; }
-.stab.off { background: #0f1220; color: #5a6072; border: 1px solid #1e2235; }
+.sync-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; vertical-align: middle; }
 .reset-confirm { border-radius: 12px; padding: 16px; background: #141825; border: 1px solid #5a1a1a; margin-top: 12px; }
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1e2235; border: 1px solid #2a3050; color: #c8cad8; padding: 10px 18px; border-radius: 10px; font-size: 12px; z-index: 100; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+.spin { animation: spin 1s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script>
+/* ════════════════════════════════════════════════════════════
+   Supabase 설정
+   ════════════════════════════════════════════════════════════ */
+const SB_URL = 'https://nudbglaiynhgtgiopyzc.supabase.co';
+const SB_KEY = 'sb_publishable_RuMvzZQ2HKAwhaCDYzZjCw_Ibh449c1';
+const SB_HEADERS = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
+const POLL_MS = 5000;
+
+/* REST 헬퍼 */
+async function sbSelect(code) {
+  const r = await fetch(`${SB_URL}/rest/v1/sessions?code=eq.${encodeURIComponent(code)}&select=data,updated_at`, { headers: SB_HEADERS });
+  if (!r.ok) throw new Error('select ' + r.status);
+  const rows = await r.json();
+  return rows[0] || null;
+}
+async function sbListSessions() {
+  const r = await fetch(`${SB_URL}/rest/v1/sessions?select=code,updated_at&order=code.desc`, { headers: SB_HEADERS });
+  if (!r.ok) throw new Error('list ' + r.status);
+  return await r.json();
+}
+async function sbUpsert(code, data) {
+  const body = JSON.stringify({ code, data, updated_at: new Date().toISOString() });
+  const r = await fetch(`${SB_URL}/rest/v1/sessions?on_conflict=code`, {
+    method: 'POST',
+    headers: { ...SB_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body
+  });
+  if (!r.ok) { const t = await r.text(); throw new Error('upsert ' + r.status + ' ' + t); }
+}
+
 /* ── 헬퍼 ───────────────────────────────────────────────────── */
-const LS = {
-  get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
-  set: (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
-};
-function encode(obj) {
-  const bytes = new TextEncoder().encode(JSON.stringify(obj));
-  let bin=''; for (let i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]);
-  return btoa(bin);
-}
-function decode(b64) {
-  try {
-    const bin=atob(b64.trim()), bytes=new Uint8Array(bin.length);
-    for (let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
-    return JSON.parse(new TextDecoder().decode(bytes));
-  } catch { return null; }
-}
 function calcBal(players, games) {
   const b=Object.fromEntries(players.map(p=>[p.id,0]));
   for (const g of games) {
@@ -132,32 +143,141 @@ function calcSettle(players, bal) {
 }
 const fmtW=n=>(n>=0?'+':'')+Math.round(n).toLocaleString()+'원';
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function todayStr() {
+  const d = new Date();
+  const z = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;
+}
 
 /* ── 상태 ───────────────────────────────────────────────────── */
 let S = {
-  room:null, roomInp:'',
-  recentRooms: LS.get('aram-rooms')||[],
-  sess:{players:[],games:[],defaultBet:2000},
-  tab:'games',
-  showG:false, showP:false, showShare:false,
-  shareMode:'export', importStr:'', copyMsg:'',
+  view: 'loading',          // loading | sessions | app
+  sessionList: [],          // [{code, updated_at}]
+  listError: null,
+  code: null,               // 현재 세션 코드 (예: 2026-06-27 또는 2026-06-27-2)
+  sess: { players:[], games:[], defaultBet:2000 },
+  tab: 'games',
+  showG:false, showP:false,
   pname:'',
   ng:{teamA:[],teamB:[],winner:null,bet:2000},
   confirmReset:false,
+  syncState:'idle',         // idle | saving | synced | error
+  toast:null,
 };
+let pollTimer = null;
+let lastServerStamp = null; // 마지막으로 본 서버 updated_at (충돌 감지용)
+let saving = false;
 
-function enterRoom(code) {
-  code = code.toUpperCase().replace(/[^A-Z0-9]/g,'');
-  const rooms=[code,...S.recentRooms.filter(r=>r!==code)].slice(0,5);
-  S.recentRooms=rooms; LS.set('aram-rooms',rooms);
-  S.room=code; S.tab='games'; S.showG=false; S.showP=false; S.showShare=false;
-  S.sess=LS.get('aram-v3-'+code)||{players:[],games:[],defaultBet:2000};
-  render();
+function setState(patch){ Object.assign(S,patch); render(); }
+function showToast(msg){ S.toast=msg; render(); setTimeout(()=>{ if(S.toast===msg){S.toast=null;render();} },2200); }
+
+/* ── 세션 진입 ──────────────────────────────────────────────── */
+async function loadSessionList() {
+  setState({ view:'sessions', listError:null });
+  try {
+    const list = await sbListSessions();
+    setState({ sessionList:list, listError:null });
+  } catch(e) {
+    setState({ sessionList:[], listError: '세션 목록을 불러오지 못했습니다. 인터넷 연결을 확인하세요.' });
+  }
 }
-function saveSession(s) { S.sess=s; if(S.room)LS.set('aram-v3-'+S.room,s); render(); }
-function setState(patch) { Object.assign(S,patch); render(); }
 
-/* ── HTML 생성 ──────────────────────────────────────────────── */
+async function createNewSession() {
+  // 오늘 날짜 기반 코드 생성, 이미 있으면 -2, -3 ...
+  const base = todayStr();
+  let list = [];
+  try { list = await sbListSessions(); } catch(e){}
+  const todays = list.map(r=>r.code).filter(c => c===base || c.startsWith(base+'-'));
+  let code = base;
+  if (todays.length) {
+    let n = 2;
+    while (todays.includes(`${base}-${n}`)) n++;
+    code = `${base}-${n}`;
+  }
+  const fresh = { players:[], games:[], defaultBet:2000 };
+  try {
+    await sbUpsert(code, fresh);
+  } catch(e) {
+    showToast('세션 생성 실패: ' + e.message);
+    return;
+  }
+  enterSession(code, fresh, new Date().toISOString());
+}
+
+async function openSession(code) {
+  try {
+    const row = await sbSelect(code);
+    if (!row) { showToast('세션을 찾을 수 없습니다'); loadSessionList(); return; }
+    enterSession(code, row.data, row.updated_at);
+  } catch(e) {
+    showToast('세션 열기 실패: ' + e.message);
+  }
+}
+
+function enterSession(code, data, stamp) {
+  S.code = code;
+  S.sess = data || { players:[], games:[], defaultBet:2000 };
+  lastServerStamp = stamp;
+  S.tab = 'games'; S.showG=false; S.showP=false; S.confirmReset=false;
+  S.syncState='synced';
+  setState({ view:'app' });
+  startPolling();
+}
+
+function leaveSession() {
+  stopPolling();
+  S.code = null;
+  loadSessionList();
+}
+
+/* ── 서버 저장 (로컬 변경 시) ──────────────────────────────── */
+async function pushSession() {
+  if (!S.code) return;
+  saving = true;
+  setState({ syncState:'saving' });
+  try {
+    await sbUpsert(S.code, S.sess);
+    lastServerStamp = new Date().toISOString();
+    setState({ syncState:'synced' });
+  } catch(e) {
+    setState({ syncState:'error' });
+    showToast('저장 실패 (재시도됨): ' + e.message);
+  } finally {
+    saving = false;
+  }
+}
+
+/* 로컬 데이터 변경 → 즉시 화면 갱신 + 서버 푸시 */
+function mutate(newSess) {
+  S.sess = newSess;
+  render();
+  pushSession();
+}
+
+/* ── 폴링 (자동 갱신) ──────────────────────────────────────── */
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(async () => {
+    if (!S.code || saving) return;            // 저장 중엔 건너뜀
+    // 모달이 열려있으면(입력 중) 화면 덮어쓰기 방지
+    if (S.showG || S.showP) return;
+    try {
+      const row = await sbSelect(S.code);
+      if (!row) return;
+      if (row.updated_at !== lastServerStamp) {
+        lastServerStamp = row.updated_at;
+        S.sess = row.data;
+        S.syncState='synced';
+        render();
+      }
+    } catch(e) { /* 조용히 무시, 다음 폴링에서 재시도 */ }
+  }, POLL_MS);
+}
+function stopPolling(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
+
+/* ════════════════════════════════════════════════════════════
+   렌더링
+   ════════════════════════════════════════════════════════════ */
 function renderBetInput(value, prefix) {
   const P=prefix||'', presets=[1000,2000,3000,5000];
   return `
@@ -168,18 +288,31 @@ function renderBetInput(value, prefix) {
     <input id="${P}betInput" class="inp-num" type="number" value="${value}" min="0" step="500" placeholder="직접 입력 (원)">`;
 }
 
-function renderRoomEntry() {
-  return `<div class="room-page"><div class="room-box">
-    <div style="font-size:52px;margin-bottom:12px">⚔️</div>
-    <h1 style="color:#C89B3C;font-size:22px;font-weight:700;letter-spacing:1px;margin-bottom:4px">ARAM 정산기</h1>
-    <p style="color:#5a6072;font-size:12px;margin-bottom:28px">방 코드로 세션을 구분합니다</p>
-    <input id="roomInp" class="inp-code" placeholder="방 코드" value="${esc(S.roomInp)}" maxlength="8">
-    <button id="btnEnter" class="btn-enter" data-action="enter-room" ${S.roomInp.length<4?'disabled':''}>입장</button>
-    <button class="btn-newroom" data-action="new-room">🎲 새 방 만들기</button>
-    ${S.recentRooms.length?`<div style="margin-top:24px"><div style="color:#3a3f52;font-size:11px;margin-bottom:8px">최근 세션</div>
-      ${S.recentRooms.map(r=>`<button class="recent-btn" data-action="recent-room" data-id="${r}"><span style="font-family:monospace;letter-spacing:2px">${r}</span><span style="color:#3a3f52;font-size:10px">▶ 입장</span></button>`).join('')}
-    </div>`:''}
-    <p style="color:#3a3f52;font-size:10px;margin-top:20px;line-height:1.7">💾 데이터는 이 기기 브라우저에 저장됩니다<br>🔗 공유하려면 앱 내 📤 공유 기능을 이용하세요</p>
+function fmtSessionLabel(code) {
+  // 2026-06-27 또는 2026-06-27-2
+  const m = code.match(/^(\d{4})-(\d{2})-(\d{2})(?:-(\d+))?$/);
+  if (!m) return code;
+  const [_, y, mo, d, n] = m;
+  return `${y}.${mo}.${d}${n?` (${n}번째)`:''}`;
+}
+
+function renderSessionPicker() {
+  const list = S.sessionList;
+  return `<div class="session-page"><div class="session-box">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:52px;margin-bottom:12px">⚔️</div>
+      <h1 style="color:#C89B3C;font-size:22px;font-weight:700;letter-spacing:1px;margin-bottom:4px">ARAM 정산기</h1>
+      <p style="color:#5a6072;font-size:12px">날짜별 세션 · 모든 기기 실시간 동기화</p>
+    </div>
+    <button class="btn-new-session" data-action="new-session">+ 오늘 새 세션 시작</button>
+    <div style="color:#3a3f52;font-size:11px;margin-bottom:8px;padding-left:2px">세션 목록</div>
+    ${S.listError ? `<div style="color:#f87171;font-size:12px;text-align:center;padding:20px">${esc(S.listError)}<br><button class="btn-plain" style="margin-top:12px;width:auto;display:inline-block;padding:8px 16px" data-action="retry-list">다시 시도</button></div>`
+      : list.length===0
+        ? `<div style="color:#2a2f45;font-size:12px;text-align:center;padding:32px">아직 세션이 없습니다.<br>위 버튼으로 시작하세요.</div>`
+        : list.map(r=>`<div class="session-card" data-action="open-session" data-code="${esc(r.code)}">
+            <span style="font-weight:600">${fmtSessionLabel(r.code)}</span>
+            <span style="color:#3a3f52;font-size:11px">▶ 열기</span>
+          </div>`).join('')}
   </div></div>`;
 }
 
@@ -212,6 +345,7 @@ function renderPlayersTab(bal) {
   const {sess}=S;
   return `<div class="row"><span style="color:#4a5068;font-size:12px">${sess.players.length}명 등록됨</span>
     <button class="btn-gold" data-action="open-add-player">+ 참가자 추가</button></div>
+    <div class="card">${renderBetInput(sess.defaultBet,'def-')}</div>
     ${sess.players.length===0?`<div style="text-align:center;padding-top:64px;color:#2a2f45"><div style="font-size:40px;margin-bottom:8px">👥</div><p style="font-size:12px">참가자를 추가해주세요</p></div>`:
     sess.players.map(p=>{
       const b=Math.round(bal[p.id]||0);
@@ -261,39 +395,23 @@ function renderSettleTab(bal, settle) {
         </div></div>`):''}`;
 }
 
+function syncIndicator() {
+  const map = {
+    idle:   ['#3a3f52','대기'],
+    saving: ['#C89B3C','<span class="spin">↻</span> 저장 중'],
+    synced: ['#4ade80','● 동기화됨'],
+    error:  ['#f87171','⚠ 오류'],
+  };
+  const [c,t] = map[S.syncState] || map.idle;
+  return `<span style="color:${c};font-size:10px">${t}</span>`;
+}
+
 function renderApp() {
   const {sess,tab}=S;
   const bal=calcBal(sess.players,sess.games);
   const settle=calcSettle(sess.players,bal);
   const tabHtml=tab==='games'?renderGamesTab():tab==='players'?renderPlayersTab(bal):renderSettleTab(bal,settle);
 
-  /* 공유 모달 */
-  const shareMod=S.showShare?`<div class="overlay" onclick="if(event.target===this)setState({showShare:false})">
-    <div class="sheet">
-      <div class="sheet-title">공유 기능</div>
-      <div class="sheet-sub">세션 데이터를 내보내거나 불러옵니다</div>
-      <div class="share-tabs">
-        <button class="stab ${S.shareMode==='export'?'on':'off'}" data-action="share-tab" data-mode="export">📤 내보내기</button>
-        <button class="stab ${S.shareMode==='import'?'on':'off'}" data-action="share-tab" data-mode="import">📥 가져오기</button>
-      </div>
-      ${S.shareMode==='export'?`
-        <div style="color:#5a6072;font-size:11px;margin-bottom:8px">아래 코드를 복사해서 카카오톡 등으로 공유하세요</div>
-        <textarea class="textarea" readonly onclick="this.select()">${encode(sess)}</textarea>
-        <div class="act-btns">
-          <button class="act-cancel" data-action="close-share">닫기</button>
-          <button class="act-ok" data-action="copy-code">${S.copyMsg||'📋 클립보드 복사'}</button>
-        </div>
-      `:`
-        <div style="color:#5a6072;font-size:11px;margin-bottom:8px">공유받은 코드를 붙여넣기 하세요 (Ctrl+V)</div>
-        <textarea id="importStr" class="textarea" placeholder="코드를 여기에 붙여넣기...">${esc(S.importStr)}</textarea>
-        <div class="act-btns">
-          <button class="act-cancel" data-action="close-share">취소</button>
-          <button class="act-ok" data-action="do-import" ${!S.importStr.trim()?'disabled':''}>📥 불러오기</button>
-        </div>`}
-    </div>
-  </div>`:'';
-
-  /* 참가자 추가 모달 */
   const playerMod=S.showP?`<div class="overlay">
     <div class="sheet" style="max-height:none">
       <div class="sheet-title" style="margin-bottom:12px">참가자 추가</div>
@@ -305,7 +423,6 @@ function renderApp() {
     </div>
   </div>`:'';
 
-  /* 게임 추가 모달 */
   const gameMod=S.showG?`<div class="overlay-scroll">
     <div style="display:flex;align-items:flex-end;min-height:100%">
     <div class="sheet">
@@ -352,12 +469,12 @@ function renderApp() {
     <header class="header">
       <div>
         <div style="color:#C89B3C;font-weight:700;font-size:15px">⚔️ ARAM 정산기</div>
-        <div style="color:#5a6072;font-size:11px;margin-top:2px">방: <span style="color:#9aa0b8;font-family:monospace">${S.room}</span>
-          <button data-action="leave" style="color:#3a3f52;font-size:10px;margin-left:8px;background:none;border:none;cursor:pointer">← 나가기</button>
+        <div style="color:#5a6072;font-size:11px;margin-top:2px">${fmtSessionLabel(S.code)}
+          <button data-action="leave" style="color:#3a3f52;font-size:10px;margin-left:8px;background:none;border:none;cursor:pointer">← 목록</button>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
-        <button class="btn-share" data-action="open-share">📤 공유</button>
+        ${syncIndicator()}
         <div style="text-align:right;color:#4a5068;font-size:11px"><div>${sess.games.length}판</div><div>${sess.players.length}명</div></div>
       </div>
     </header>
@@ -367,54 +484,51 @@ function renderApp() {
       <button class="tab${tab==='settle'?' active':''}" data-action="set-tab" data-tab="settle">정산</button>
     </nav>
     <main class="main">${tabHtml}</main>
-    ${shareMod}${playerMod}${gameMod}
+    ${playerMod}${gameMod}
   </div>`;
+}
+
+function renderLoading() {
+  return `<div class="session-page"><div style="text-align:center;color:#5a6072;margin-top:80px">
+    <div style="font-size:40px;margin-bottom:12px">⚔️</div>
+    <div style="font-size:13px"><span class="spin" style="display:inline-block">↻</span> 불러오는 중...</div>
+  </div></div>`;
 }
 
 /* ── 렌더 ───────────────────────────────────────────────────── */
 function render() {
-  document.getElementById('root').innerHTML = S.room ? renderApp() : renderRoomEntry();
-  // 포커스 복원 (모달 입력창)
-  const pInp=document.getElementById('pnameInp'), iInp=document.getElementById('importStr');
+  let html;
+  if (S.view==='loading') html = renderLoading();
+  else if (S.view==='sessions') html = renderSessionPicker();
+  else html = renderApp();
+  if (S.toast) html += `<div class="toast">${esc(S.toast)}</div>`;
+  document.getElementById('root').innerHTML = html;
+  const pInp=document.getElementById('pnameInp');
   if (pInp) { pInp.focus(); pInp.selectionStart=pInp.selectionEnd=pInp.value.length; }
-  else if (S.showShare && S.shareMode==='import' && iInp) iInp.focus();
 }
 
 /* ── 이벤트 ─────────────────────────────────────────────────── */
 document.addEventListener('click', function(e) {
   const t=e.target.closest('[data-action]'); if(!t) return;
-  const {action,id,tab,side,team,mode,bet}=t.dataset;
+  const {action,id,tab,side,team,bet,code}=t.dataset;
   switch(action) {
-    case 'enter-room': if(S.roomInp.length>=4) enterRoom(S.roomInp); break;
-    case 'new-room': {
-      const ch='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-      enterRoom(Array.from({length:6},()=>ch[Math.floor(Math.random()*32)]).join(''));
-      break;
-    }
-    case 'recent-room': enterRoom(id); break;
-    case 'leave': setState({room:null,roomInp:'',showG:false,showP:false,showShare:false}); break;
+    case 'new-session': createNewSession(); break;
+    case 'open-session': openSession(code); break;
+    case 'retry-list': loadSessionList(); break;
+    case 'leave': leaveSession(); break;
     case 'set-tab': setState({tab,confirmReset:false}); break;
-    case 'open-share': setState({showShare:true,shareMode:'export',copyMsg:''}); break;
-    case 'close-share': setState({showShare:false,importStr:''}); break;
-    case 'share-tab': setState({shareMode:mode}); break;
-    case 'copy-code':
-      navigator.clipboard?.writeText(encode(S.sess)).then(()=>{setState({copyMsg:'✅ 복사됨!'});setTimeout(()=>setState({copyMsg:''}),2500);});
-      break;
-    case 'do-import': {
-      const data=decode(S.importStr);
-      if(!data){alert('잘못된 코드입니다');return;}
-      S.importStr=''; setState({showShare:false,importStr:''});
-      saveSession(data); break;
-    }
+
     case 'open-add-player': setState({showP:true,pname:''}); break;
     case 'close-add-player': setState({showP:false,pname:''}); break;
     case 'confirm-add-player': {
       const n=S.pname.trim(); if(!n) return;
-      saveSession({...S.sess,players:[...S.sess.players,{id:`${Date.now()}`,name:n}]});
-      setState({showP:false,pname:''}); break;
+      S.showP=false; S.pname='';
+      mutate({...S.sess,players:[...S.sess.players,{id:`${Date.now()}`,name:n}]});
+      break;
     }
-    case 'remove-player': saveSession({...S.sess,players:S.sess.players.filter(p=>p.id!==id)}); break;
-    case 'def-set-bet': saveSession({...S.sess,defaultBet:parseInt(bet)}); break;
+    case 'remove-player': mutate({...S.sess,players:S.sess.players.filter(p=>p.id!==id)}); break;
+    case 'def-set-bet': mutate({...S.sess,defaultBet:parseInt(bet)}); break;
+
     case 'open-add-game': setState({showG:true,ng:{teamA:[],teamB:[],winner:null,bet:S.sess.defaultBet}}); break;
     case 'close-add-game': setState({showG:false}); break;
     case 'copy-prev-game': {
@@ -428,40 +542,45 @@ document.addEventListener('click', function(e) {
       const ng = {...S.ng};
       ng.teamA = ng.teamA.filter(x => x !== id);
       ng.teamB = ng.teamB.filter(x => x !== id);
-      if (side === 'a') ng.teamA.push(id);
-      else if (side === 'b') ng.teamB.push(id);
+      if (side === 'a') ng.teamA = [...ng.teamA, id];
+      else if (side === 'b') ng.teamB = [...ng.teamB, id];
       setState({ng});
       break;
     }
     case 'set-winner': setState({ng:{...S.ng,winner:team}}); break;
     case 'confirm-add-game': {
       const {ng}=S; if(!ng.winner||!ng.teamA.length||!ng.teamB.length) return;
-      saveSession({...S.sess,games:[...S.sess.games,{id:`${Date.now()}`,num:S.sess.games.length+1,...ng}]});
-      setState({showG:false,ng:{teamA:[],teamB:[],winner:null,bet:S.sess.defaultBet}}); break;
+      S.showG=false;
+      const newGame={id:`${Date.now()}`,num:S.sess.games.length+1,teamA:ng.teamA,teamB:ng.teamB,winner:ng.winner,bet:ng.bet};
+      S.ng={teamA:[],teamB:[],winner:null,bet:S.sess.defaultBet};
+      mutate({...S.sess,games:[...S.sess.games,newGame]});
+      break;
     }
-    case 'remove-game': saveSession({...S.sess,games:S.sess.games.filter(g=>g.id!==id).map((g,i)=>({...g,num:i+1}))}); break;
+    case 'remove-game': mutate({...S.sess,games:S.sess.games.filter(g=>g.id!==id).map((g,i)=>({...g,num:i+1}))}); break;
     case 'show-reset': setState({confirmReset:true}); break;
     case 'cancel-reset': setState({confirmReset:false}); break;
-    case 'do-reset': saveSession({...S.sess,games:[]}); setState({confirmReset:false}); break;
+    case 'do-reset': S.confirmReset=false; mutate({...S.sess,games:[]}); break;
   }
 });
 
 document.addEventListener('input', function(e) {
   const {id,value}=e.target;
-  if (id==='roomInp') { S.roomInp=value.toUpperCase().replace(/[^A-Z0-9]/g,''); e.target.value=S.roomInp; const b=document.getElementById('btnEnter'); if(b) b.disabled=S.roomInp.length<4; }
   if (id==='pnameInp') S.pname=value;
-  if (id==='importStr') S.importStr=value;
   if (id==='ng-betInput') { const v=Math.max(0,parseInt(value)||0); S.ng={...S.ng,bet:v}; }
+  if (id==='def-betInput') { const v=Math.max(0,parseInt(value)||0); mutate({...S.sess,defaultBet:v}); }
 });
 
 document.addEventListener('keydown', function(e) {
   if (e.key!=='Enter') return;
   const {id}=e.target;
-  if (id==='roomInp' && S.roomInp.length>=4) enterRoom(S.roomInp);
   if (id==='pnameInp') document.querySelector('[data-action="confirm-add-player"]')?.click();
 });
 
-render();
+/* 페이지 떠날 때 폴링 정리 */
+window.addEventListener('beforeunload', stopPolling);
+
+/* ── 시작 ───────────────────────────────────────────────────── */
+loadSessionList();
 </script>
 </body>
 </html>
