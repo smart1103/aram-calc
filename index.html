@@ -312,7 +312,7 @@ async function doDeleteSession() {
     stopPolling();
     S.code=null; S.token=null; S.canEdit=false; S.view='sessions';
     showToast('세션이 삭제되었습니다');
-    loadSessionList(true);   // 삭제 후 새 세션 생성 모달 자동 표시
+    loadSessionList();
   } catch(e) { showToast('삭제 실패: ' + e.message); }
 }
 
