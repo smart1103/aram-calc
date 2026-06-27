@@ -44,10 +44,12 @@ input, textarea { font-family: inherit; font-size: inherit; }
 .settle-row { display: flex; align-items: center; justify-content: space-between; border-radius: 8px; padding: 10px 12px; background: #0f1220; border: 1px solid #1e2235; margin-bottom: 8px; }
 
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.88); z-index: 50; display: flex; align-items: flex-end; }
+.overlay-center { position: fixed; inset: 0; background: rgba(0,0,0,0.88); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .overlay-scroll { position: fixed; inset: 0; background: rgba(0,0,0,0.88); z-index: 50; overflow-y: auto; }
 .sheet { width: 100%; border-radius: 16px 16px 0 0; padding: 20px; background: #141825; border-top: 1px solid #2a2f45; max-height: 85vh; overflow-y: auto; }
+.modal-box { width: 100%; max-width: 320px; border-radius: 16px; padding: 22px; background: #141825; border: 1px solid #2a2f45; }
 .sheet-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
-.sheet-sub { color: #4a5068; font-size: 11px; margin-bottom: 16px; }
+.sheet-sub { color: #4a5068; font-size: 11px; margin-bottom: 16px; line-height: 1.5; }
 
 .bet-presets { display: flex; gap: 6px; margin-bottom: 8px; }
 .preset { flex: 1; padding: 6px 0; border-radius: 8px; font-size: 12px; font-weight: 600; border: 1px solid #1e2235; background: #0f1220; color: #5a6072; cursor: pointer; }
@@ -70,10 +72,11 @@ input, textarea { font-family: inherit; font-size: inherit; }
 .act-cancel { flex: 1; padding: 12px; border-radius: 12px; font-size: 12px; background: #0f1220; color: #7a8099; border: 1px solid #1e2235; cursor: pointer; }
 .act-ok { flex: 2; padding: 12px; border-radius: 12px; font-size: 12px; font-weight: 700; background: #C89B3C; color: #0a0c16; border: none; cursor: pointer; }
 .act-ok:disabled { background: #3a3000; color: #5a4800; cursor: default; }
-.act-danger { flex: 1; padding: 8px; border-radius: 8px; font-size: 12px; font-weight: 700; background: #c0392b; color: #fff; border: none; cursor: pointer; }
+.act-danger { flex: 1; padding: 12px; border-radius: 12px; font-size: 12px; font-weight: 700; background: #c0392b; color: #fff; border: none; cursor: pointer; }
 
 .inp { width: 100%; border-radius: 12px; padding: 10px 16px; font-size: 13px; outline: none; background: #0f1220; border: 1px solid #2a2f45; color: #c8cad8; display: block; }
 .inp-num { width: 100%; border-radius: 12px; padding: 8px 12px; font-size: 13px; text-align: right; outline: none; background: #0f1220; border: 1px solid #2a2f45; color: #c8cad8; display: block; }
+.inp-pin { width: 100%; border-radius: 12px; padding: 12px; font-size: 24px; letter-spacing: 0.5em; text-align: center; outline: none; background: #0f1220; border: 1px solid #2a2f45; color: #e8e0d0; display: block; font-family: monospace; }
 
 .session-page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 40px 24px; background: linear-gradient(135deg, #0a0c16 0%, #0f1220 100%); }
 .session-box { width: 100%; max-width: 360px; }
@@ -81,11 +84,12 @@ input, textarea { font-family: inherit; font-size: inherit; }
 .session-card:hover { border-color: #2a3050; }
 .btn-new-session { width: 100%; font-weight: 700; padding: 14px; border-radius: 12px; margin-bottom: 20px; font-size: 14px; background: #C89B3C; color: #0a0c16; border: none; cursor: pointer; }
 
-.sync-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; vertical-align: middle; }
+.owner-badge { font-size: 10px; padding: 2px 7px; border-radius: 6px; background: #2a3a1e; color: #8fce6a; margin-left: 6px; }
 .reset-confirm { border-radius: 12px; padding: 16px; background: #141825; border: 1px solid #5a1a1a; margin-top: 12px; }
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1e2235; border: 1px solid #2a3050; color: #c8cad8; padding: 10px 18px; border-radius: 10px; font-size: 12px; z-index: 100; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
 .spin { animation: spin 1s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.readonly-banner { background: #1a1d2e; border: 1px solid #2a2f45; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; font-size: 12px; color: #8a90a8; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 </style>
 </head>
 <body>
@@ -99,9 +103,17 @@ const SB_KEY = 'sb_publishable_RuMvzZQ2HKAwhaCDYzZjCw_Ibh449c1';
 const SB_HEADERS = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
 const POLL_MS = 5000;
 
+/* 소유자 토큰: 이 기기가 권한 가진 세션들의 비밀키를 로컬 보관 */
+const TOKEN_STORE = 'aram-owner-tokens';
+function loadTokens(){ try { return JSON.parse(localStorage.getItem(TOKEN_STORE)) || {}; } catch { return {}; } }
+function saveToken(code, token){ const t=loadTokens(); t[code]=token; try{ localStorage.setItem(TOKEN_STORE, JSON.stringify(t)); }catch{} }
+function getToken(code){ return loadTokens()[code] || null; }
+function dropToken(code){ const t=loadTokens(); delete t[code]; try{ localStorage.setItem(TOKEN_STORE, JSON.stringify(t)); }catch{} }
+function randToken(){ return 'tk_' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2); }
+
 /* REST 헬퍼 */
 async function sbSelect(code) {
-  const r = await fetch(`${SB_URL}/rest/v1/sessions?code=eq.${encodeURIComponent(code)}&select=data,updated_at`, { headers: SB_HEADERS });
+  const r = await fetch(`${SB_URL}/rest/v1/sessions?code=eq.${encodeURIComponent(code)}&select=data,updated_at,owner_token`, { headers: SB_HEADERS });
   if (!r.ok) throw new Error('select ' + r.status);
   const rows = await r.json();
   return rows[0] || null;
@@ -111,17 +123,39 @@ async function sbListSessions() {
   if (!r.ok) throw new Error('list ' + r.status);
   return await r.json();
 }
-async function sbUpsert(code, data) {
-  const body = JSON.stringify({ code, data, updated_at: new Date().toISOString() });
-  const r = await fetch(`${SB_URL}/rest/v1/sessions?on_conflict=code`, {
-    method: 'POST',
-    headers: { ...SB_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-    body
+async function sbInsertSession(code, data, ownerToken, pin) {
+  const body = JSON.stringify({ code, data, owner_token: ownerToken, edit_pin: pin, updated_at: new Date().toISOString() });
+  const r = await fetch(`${SB_URL}/rest/v1/sessions`, {
+    method: 'POST', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' }, body
   });
-  if (!r.ok) { const t = await r.text(); throw new Error('upsert ' + r.status + ' ' + t); }
+  if (!r.ok) { const t = await r.text(); throw new Error('insert ' + r.status + ' ' + t); }
+}
+/* 데이터 업데이트 — 서버에서 owner_token 일치 행만 수정 (권한 강제) */
+async function sbUpdateData(code, data, token) {
+  const url = `${SB_URL}/rest/v1/sessions?code=eq.${encodeURIComponent(code)}&owner_token=eq.${encodeURIComponent(token)}`;
+  const body = JSON.stringify({ data, updated_at: new Date().toISOString() });
+  const r = await fetch(url, { method: 'PATCH', headers: { ...SB_HEADERS, 'Prefer': 'return=representation' }, body });
+  if (!r.ok) { const t = await r.text(); throw new Error('update ' + r.status + ' ' + t); }
+  const rows = await r.json();
+  return rows.length > 0;
+}
+async function sbDeleteSession(code, token) {
+  const url = `${SB_URL}/rest/v1/sessions?code=eq.${encodeURIComponent(code)}&owner_token=eq.${encodeURIComponent(token)}`;
+  const r = await fetch(url, { method: 'DELETE', headers: { ...SB_HEADERS, 'Prefer':'return=representation' } });
+  if (!r.ok) { const t = await r.text(); throw new Error('delete ' + r.status + ' ' + t); }
+  const rows = await r.json();
+  return rows.length > 0;
+}
+/* PIN 검증: code+pin 일치 행의 owner_token 회수 */
+async function sbClaimByPin(code, pin) {
+  const url = `${SB_URL}/rest/v1/sessions?code=eq.${encodeURIComponent(code)}&edit_pin=eq.${encodeURIComponent(pin)}&select=owner_token`;
+  const r = await fetch(url, { headers: SB_HEADERS });
+  if (!r.ok) throw new Error('claim ' + r.status);
+  const rows = await r.json();
+  return rows[0] ? rows[0].owner_token : null;
 }
 
-/* ── 헬퍼 ───────────────────────────────────────────────────── */
+/* ── 정산 로직 ──────────────────────────────────────────────── */
 function calcBal(players, games) {
   const b=Object.fromEntries(players.map(p=>[p.id,0]));
   for (const g of games) {
@@ -151,29 +185,30 @@ function todayStr() {
 
 /* ── 상태 ───────────────────────────────────────────────────── */
 let S = {
-  view: 'loading',          // loading | sessions | app
-  sessionList: [],          // [{code, updated_at}]
-  listError: null,
-  code: null,               // 현재 세션 코드 (예: 2026-06-27 또는 2026-06-27-2)
+  view: 'loading',
+  sessionList: [], listError: null,
+  code: null,
   sess: { players:[], games:[], defaultBet:2000 },
+  canEdit: false, token: null,
   tab: 'games',
   showG:false, showP:false,
+  showNewModal:false, newPin:'',
+  showPinModal:false, pinInput:'',
+  confirmReset:false, confirmDelete:false,
   pname:'',
   ng:{teamA:[],teamB:[],winner:null,bet:2000},
-  confirmReset:false,
-  syncState:'idle',         // idle | saving | synced | error
-  toast:null,
+  syncState:'idle', toast:null,
 };
 let pollTimer = null;
-let lastServerStamp = null; // 마지막으로 본 서버 updated_at (충돌 감지용)
+let lastServerStamp = null;
 let saving = false;
 
 function setState(patch){ Object.assign(S,patch); render(); }
-function showToast(msg){ S.toast=msg; render(); setTimeout(()=>{ if(S.toast===msg){S.toast=null;render();} },2200); }
+function showToast(msg){ S.toast=msg; render(); setTimeout(()=>{ if(S.toast===msg){S.toast=null;render();} },2400); }
 
-/* ── 세션 진입 ──────────────────────────────────────────────── */
+/* ── 세션 목록 ──────────────────────────────────────────────── */
 async function loadSessionList() {
-  setState({ view:'sessions', listError:null });
+  setState({ view:'sessions', listError:null, showNewModal:false, showPinModal:false });
   try {
     const list = await sbListSessions();
     setState({ sessionList:list, listError:null });
@@ -182,95 +217,121 @@ async function loadSessionList() {
   }
 }
 
-async function createNewSession() {
-  // 오늘 날짜 기반 코드 생성, 이미 있으면 -2, -3 ...
+function openNewSessionModal(){ setState({ showNewModal:true, newPin:'' }); }
+
+async function confirmNewSession() {
+  const pin = S.newPin.trim();
+  if (!/^\d{4}$/.test(pin)) { showToast('PIN은 숫자 4자리로 입력하세요'); return; }
   const base = todayStr();
   let list = [];
   try { list = await sbListSessions(); } catch(e){}
   const todays = list.map(r=>r.code).filter(c => c===base || c.startsWith(base+'-'));
   let code = base;
-  if (todays.length) {
-    let n = 2;
-    while (todays.includes(`${base}-${n}`)) n++;
-    code = `${base}-${n}`;
-  }
+  if (todays.length) { let n=2; while(todays.includes(`${base}-${n}`)) n++; code=`${base}-${n}`; }
   const fresh = { players:[], games:[], defaultBet:2000 };
-  try {
-    await sbUpsert(code, fresh);
-  } catch(e) {
-    showToast('세션 생성 실패: ' + e.message);
-    return;
-  }
-  enterSession(code, fresh, new Date().toISOString());
+  const token = randToken();
+  try { await sbInsertSession(code, fresh, token, pin); }
+  catch(e) { showToast('세션 생성 실패: ' + e.message); return; }
+  saveToken(code, token);
+  S.showNewModal=false; S.newPin='';
+  enterSession(code, fresh, new Date().toISOString(), token, true);
 }
 
 async function openSession(code) {
   try {
     const row = await sbSelect(code);
     if (!row) { showToast('세션을 찾을 수 없습니다'); loadSessionList(); return; }
-    enterSession(code, row.data, row.updated_at);
-  } catch(e) {
-    showToast('세션 열기 실패: ' + e.message);
-  }
+    const myToken = getToken(code);
+    const canEdit = !!myToken && myToken === row.owner_token;
+    enterSession(code, row.data, row.updated_at, canEdit ? myToken : null, canEdit);
+  } catch(e) { showToast('세션 열기 실패: ' + e.message); }
 }
 
-function enterSession(code, data, stamp) {
+function enterSession(code, data, stamp, token, canEdit) {
   S.code = code;
   S.sess = data || { players:[], games:[], defaultBet:2000 };
   lastServerStamp = stamp;
-  S.tab = 'games'; S.showG=false; S.showP=false; S.confirmReset=false;
-  S.syncState='synced';
+  S.token = token; S.canEdit = canEdit;
+  S.tab='games'; S.showG=false; S.showP=false; S.confirmReset=false; S.confirmDelete=false;
+  S.syncState = canEdit ? 'synced' : 'readonly';
   setState({ view:'app' });
   startPolling();
 }
 
 function leaveSession() {
   stopPolling();
-  S.code = null;
+  S.code=null; S.token=null; S.canEdit=false;
   loadSessionList();
 }
 
-/* ── 서버 저장 (로컬 변경 시) ──────────────────────────────── */
-async function pushSession() {
-  if (!S.code) return;
-  saving = true;
-  setState({ syncState:'saving' });
+function openPinModal(){ setState({ showPinModal:true, pinInput:'' }); }
+async function submitPin() {
+  const pin = S.pinInput.trim();
+  if (!/^\d{4}$/.test(pin)) { showToast('PIN 4자리를 입력하세요'); return; }
   try {
-    await sbUpsert(S.code, S.sess);
-    lastServerStamp = new Date().toISOString();
-    setState({ syncState:'synced' });
+    const token = await sbClaimByPin(S.code, pin);
+    if (!token) { showToast('PIN이 일치하지 않습니다'); return; }
+    saveToken(S.code, token);
+    S.token = token; S.canEdit = true; S.showPinModal=false; S.pinInput=''; S.syncState='synced';
+    render();
+    showToast('수정 권한을 획득했습니다 ✅');
+  } catch(e) { showToast('PIN 확인 실패: ' + e.message); }
+}
+
+/* ── 서버 저장 ──────────────────────────────────────────────── */
+async function pushSession() {
+  if (!S.code || !S.canEdit) return;
+  saving = true; setState({ syncState:'saving' });
+  try {
+    const ok = await sbUpdateData(S.code, S.sess, S.token);
+    if (!ok) {
+      S.canEdit=false; S.token=null; dropToken(S.code);
+      setState({ syncState:'readonly' });
+      showToast('수정 권한이 없습니다');
+    } else {
+      lastServerStamp = new Date().toISOString();
+      setState({ syncState:'synced' });
+    }
   } catch(e) {
     setState({ syncState:'error' });
-    showToast('저장 실패 (재시도됨): ' + e.message);
-  } finally {
-    saving = false;
-  }
+    showToast('저장 실패: ' + e.message);
+  } finally { saving = false; }
 }
 
-/* 로컬 데이터 변경 → 즉시 화면 갱신 + 서버 푸시 */
 function mutate(newSess) {
-  S.sess = newSess;
-  render();
-  pushSession();
+  if (!S.canEdit) { showToast('읽기 전용입니다. PIN으로 권한을 획득하세요'); return; }
+  S.sess = newSess; render(); pushSession();
 }
 
-/* ── 폴링 (자동 갱신) ──────────────────────────────────────── */
+async function doDeleteSession() {
+  if (!S.canEdit || !S.token) { showToast('삭제 권한이 없습니다'); return; }
+  try {
+    const ok = await sbDeleteSession(S.code, S.token);
+    if (!ok) { showToast('삭제 실패: 권한 불일치'); return; }
+    dropToken(S.code);
+    stopPolling();
+    S.code=null; S.token=null; S.canEdit=false;
+    showToast('세션이 삭제되었습니다');
+    loadSessionList();
+  } catch(e) { showToast('삭제 실패: ' + e.message); }
+}
+
+/* ── 폴링 ───────────────────────────────────────────────────── */
 function startPolling() {
   stopPolling();
   pollTimer = setInterval(async () => {
-    if (!S.code || saving) return;            // 저장 중엔 건너뜀
-    // 모달이 열려있으면(입력 중) 화면 덮어쓰기 방지
-    if (S.showG || S.showP) return;
+    if (!S.code || saving) return;
+    if (S.showG || S.showP || S.showPinModal) return;
     try {
       const row = await sbSelect(S.code);
-      if (!row) return;
+      if (!row) { showToast('이 세션이 삭제되었습니다'); leaveSession(); return; }
       if (row.updated_at !== lastServerStamp) {
         lastServerStamp = row.updated_at;
         S.sess = row.data;
-        S.syncState='synced';
+        if (S.canEdit) S.syncState='synced';
         render();
       }
-    } catch(e) { /* 조용히 무시, 다음 폴링에서 재시도 */ }
+    } catch(e) {}
   }, POLL_MS);
 }
 function stopPolling(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
@@ -289,7 +350,6 @@ function renderBetInput(value, prefix) {
 }
 
 function fmtSessionLabel(code) {
-  // 2026-06-27 또는 2026-06-27-2
   const m = code.match(/^(\d{4})-(\d{2})-(\d{2})(?:-(\d+))?$/);
   if (!m) return code;
   const [_, y, mo, d, n] = m;
@@ -298,30 +358,34 @@ function fmtSessionLabel(code) {
 
 function renderSessionPicker() {
   const list = S.sessionList;
+  const myTokens = loadTokens();
   return `<div class="session-page"><div class="session-box">
     <div style="text-align:center;margin-bottom:28px">
       <div style="font-size:52px;margin-bottom:12px">⚔️</div>
       <h1 style="color:#C89B3C;font-size:22px;font-weight:700;letter-spacing:1px;margin-bottom:4px">ARAM 정산기</h1>
       <p style="color:#5a6072;font-size:12px">날짜별 세션 · 모든 기기 실시간 동기화</p>
     </div>
-    <button class="btn-new-session" data-action="new-session">+ 오늘 새 세션 시작</button>
+    <button class="btn-new-session" data-action="open-new-session">+ 오늘 새 세션 시작</button>
     <div style="color:#3a3f52;font-size:11px;margin-bottom:8px;padding-left:2px">세션 목록</div>
     ${S.listError ? `<div style="color:#f87171;font-size:12px;text-align:center;padding:20px">${esc(S.listError)}<br><button class="btn-plain" style="margin-top:12px;width:auto;display:inline-block;padding:8px 16px" data-action="retry-list">다시 시도</button></div>`
       : list.length===0
         ? `<div style="color:#2a2f45;font-size:12px;text-align:center;padding:32px">아직 세션이 없습니다.<br>위 버튼으로 시작하세요.</div>`
-        : list.map(r=>`<div class="session-card" data-action="open-session" data-code="${esc(r.code)}">
-            <span style="font-weight:600">${fmtSessionLabel(r.code)}</span>
-            <span style="color:#3a3f52;font-size:11px">▶ 열기</span>
-          </div>`).join('')}
+        : list.map(r=>{
+            const owned = !!myTokens[r.code];
+            return `<div class="session-card" data-action="open-session" data-code="${esc(r.code)}">
+              <span style="font-weight:600">${fmtSessionLabel(r.code)}${owned?'<span class="owner-badge">내 세션</span>':''}</span>
+              <span style="color:#3a3f52;font-size:11px">▶ 열기</span>
+            </div>`;
+          }).join('')}
   </div></div>`;
 }
 
 function renderGamesTab() {
-  const {sess}=S;
+  const {sess,canEdit}=S;
   const pOf=id=>esc(sess.players.find(p=>p.id===id)?.name||'?');
   return `<div class="row"><span style="color:#4a5068;font-size:12px">총 ${sess.games.length}판 기록</span>
-    <button class="btn-gold" data-action="open-add-game">+ 게임 추가</button></div>
-    ${sess.games.length===0?`<div style="text-align:center;padding-top:64px;color:#2a2f45"><div style="font-size:40px;margin-bottom:8px">🎮</div><p style="font-size:12px">게임 결과를 추가해주세요</p></div>`:
+    ${canEdit?`<button class="btn-gold" data-action="open-add-game">+ 게임 추가</button>`:''}</div>
+    ${sess.games.length===0?`<div style="text-align:center;padding-top:64px;color:#2a2f45"><div style="font-size:40px;margin-bottom:8px">🎮</div><p style="font-size:12px">${canEdit?'게임 결과를 추가해주세요':'기록된 게임이 없습니다'}</p></div>`:
     [...sess.games].reverse().map(g=>{
       const aw=g.winner==='a';
       return `<div class="card">
@@ -329,7 +393,7 @@ function renderGamesTab() {
           <span style="font-weight:700;color:#C89B3C">${g.num}판</span>
           <div style="display:flex;align-items:center;gap:8px">
             <span style="color:#4a5068;font-size:11px">1인당 ${g.bet.toLocaleString()}원</span>
-            <button class="btn-rm" data-action="remove-game" data-id="${g.id}">✕</button>
+            ${canEdit?`<button class="btn-rm" data-action="remove-game" data-id="${g.id}">✕</button>`:''}
           </div>
         </div>
         <div class="game-grid">
@@ -342,11 +406,11 @@ function renderGamesTab() {
 }
 
 function renderPlayersTab(bal) {
-  const {sess}=S;
+  const {sess,canEdit}=S;
   return `<div class="row"><span style="color:#4a5068;font-size:12px">${sess.players.length}명 등록됨</span>
-    <button class="btn-gold" data-action="open-add-player">+ 참가자 추가</button></div>
-    <div class="card">${renderBetInput(sess.defaultBet,'def-')}</div>
-    ${sess.players.length===0?`<div style="text-align:center;padding-top:64px;color:#2a2f45"><div style="font-size:40px;margin-bottom:8px">👥</div><p style="font-size:12px">참가자를 추가해주세요</p></div>`:
+    ${canEdit?`<button class="btn-gold" data-action="open-add-player">+ 참가자 추가</button>`:''}</div>
+    ${canEdit?`<div class="card">${renderBetInput(sess.defaultBet,'def-')}</div>`:''}
+    ${sess.players.length===0?`<div style="text-align:center;padding-top:64px;color:#2a2f45"><div style="font-size:40px;margin-bottom:8px">👥</div><p style="font-size:12px">${canEdit?'참가자를 추가해주세요':'등록된 참가자가 없습니다'}</p></div>`:
     sess.players.map(p=>{
       const b=Math.round(bal[p.id]||0);
       const pl=sess.games.filter(g=>[...g.teamA,...g.teamB].includes(p.id));
@@ -355,14 +419,14 @@ function renderPlayersTab(bal) {
         <div><div style="font-weight:500">${esc(p.name)}</div><div style="color:#4a5068;font-size:11px;margin-top:2px">${pl.length}판 ${wn}승 ${pl.length-wn}패</div></div>
         <div style="display:flex;align-items:center;gap:12px">
           <span style="font-weight:700;font-size:12px;color:${b>=0?'#4ade80':'#f87171'}">${fmtW(b)}</span>
-          <button class="btn-rm" data-action="remove-player" data-id="${p.id}">✕</button>
+          ${canEdit?`<button class="btn-rm" data-action="remove-player" data-id="${p.id}">✕</button>`:''}
         </div>
       </div>`;
     }).join('')}`;
 }
 
 function renderSettleTab(bal, settle) {
-  const {sess}=S;
+  const {sess,canEdit}=S;
   const mx=Math.max(...sess.players.map(p=>Math.abs(bal[p.id]||0)),1);
   const sorted=[...sess.players].sort((a,b)=>(bal[b.id]||0)-(bal[a.id]||0));
   return `
@@ -376,7 +440,7 @@ function renderSettleTab(bal, settle) {
     </div>`:''}
     <div class="card">
       <div style="color:#5a6072;font-size:11px;margin-bottom:10px">송금 목록${settle.length?`<span style="color:#C89B3C;margin-left:6px">${settle.length}건</span>`:''}</div>
-      ${settle.length===0?`<div style="text-align:center;padding:16px 0;color:#2a2f45;font-size:12px">${sess.games.length===0?'게임을 추가해주세요':'✅ 모두 정산됨'}</div>`:
+      ${settle.length===0?`<div style="text-align:center;padding:16px 0;color:#2a2f45;font-size:12px">${sess.games.length===0?'게임이 없습니다':'✅ 모두 정산됨'}</div>`:
       settle.map(t=>`<div class="settle-row">
         <div style="display:flex;align-items:center;gap:6px">
           <span style="font-weight:500;color:#f87171">${esc(t.from)}</span>
@@ -386,31 +450,45 @@ function renderSettleTab(bal, settle) {
         <span style="font-weight:700;color:#C89B3C">${t.amount.toLocaleString()}원</span>
       </div>`).join('')}
     </div>
-    ${sess.games.length?(!S.confirmReset
-      ?`<button class="btn-plain" style="font-size:12px;color:#3a3f52" data-action="show-reset">게임 기록 초기화</button>`
-      :`<div class="reset-confirm"><p style="text-align:center;color:#9aa0b8;font-size:12px;margin-bottom:12px">게임 기록을 초기화할까요?<br><span style="color:#5a6072;font-size:11px">참가자 목록은 유지됩니다</span></p>
-        <div style="display:flex;gap:8px">
-          <button class="act-cancel" data-action="cancel-reset">취소</button>
-          <button class="act-danger" data-action="do-reset">초기화</button>
-        </div></div>`):''}`;
+    ${canEdit?`
+      ${sess.games.length?(!S.confirmReset
+        ?`<button class="btn-plain" style="font-size:12px;color:#3a3f52;margin-bottom:10px" data-action="show-reset">게임 기록 초기화</button>`
+        :`<div class="reset-confirm"><p style="text-align:center;color:#9aa0b8;font-size:12px;margin-bottom:12px">게임 기록을 초기화할까요?<br><span style="color:#5a6072;font-size:11px">참가자 목록은 유지됩니다</span></p>
+          <div style="display:flex;gap:8px">
+            <button class="act-cancel" data-action="cancel-reset">취소</button>
+            <button class="act-danger" data-action="do-reset">초기화</button>
+          </div></div>`):''}
+      ${!S.confirmDelete
+        ?`<button class="btn-plain" style="font-size:12px;color:#7a3030;border-color:#3a1a1a" data-action="show-delete">🗑 이 세션 삭제</button>`
+        :`<div class="reset-confirm"><p style="text-align:center;color:#f0a8b0;font-size:12px;margin-bottom:4px">이 세션을 완전히 삭제할까요?</p><p style="text-align:center;color:#5a6072;font-size:11px;margin-bottom:12px">모든 기기에서 사라지며 복구 불가능합니다</p>
+          <div style="display:flex;gap:8px">
+            <button class="act-cancel" data-action="cancel-delete">취소</button>
+            <button class="act-danger" data-action="do-delete">삭제</button>
+          </div></div>`}
+    `:''}`;
 }
 
 function syncIndicator() {
+  if (!S.canEdit) return `<span style="color:#8a90a8;font-size:10px">🔒 읽기전용</span>`;
   const map = {
-    idle:   ['#3a3f52','대기'],
     saving: ['#C89B3C','<span class="spin">↻</span> 저장 중'],
     synced: ['#4ade80','● 동기화됨'],
     error:  ['#f87171','⚠ 오류'],
   };
-  const [c,t] = map[S.syncState] || map.idle;
+  const [c,t] = map[S.syncState] || ['#3a3f52','대기'];
   return `<span style="color:${c};font-size:10px">${t}</span>`;
 }
 
 function renderApp() {
-  const {sess,tab}=S;
+  const {sess,tab,canEdit}=S;
   const bal=calcBal(sess.players,sess.games);
   const settle=calcSettle(sess.players,bal);
   const tabHtml=tab==='games'?renderGamesTab():tab==='players'?renderPlayersTab(bal):renderSettleTab(bal,settle);
+
+  const readonlyBanner = !canEdit ? `<div class="readonly-banner">
+    <span>🔒 읽기 전용 — 생성자만 수정 가능</span>
+    <button class="btn-share" data-action="open-pin">PIN 입력</button>
+  </div>` : '';
 
   const playerMod=S.showP?`<div class="overlay">
     <div class="sheet" style="max-height:none">
@@ -465,6 +543,18 @@ function renderApp() {
     </div>
   </div>`:'';
 
+  const pinMod=S.showPinModal?`<div class="overlay-center">
+    <div class="modal-box">
+      <div class="sheet-title" style="margin-bottom:4px">수정 권한 획득</div>
+      <div class="sheet-sub">세션 생성자가 설정한 4자리 PIN을 입력하세요</div>
+      <input id="pinInput" class="inp-pin" type="tel" inputmode="numeric" maxlength="4" placeholder="••••" value="${esc(S.pinInput)}" style="margin-bottom:14px">
+      <div class="act-btns">
+        <button class="act-cancel" data-action="close-pin">취소</button>
+        <button class="act-ok" data-action="submit-pin">확인</button>
+      </div>
+    </div>
+  </div>`:'';
+
   return `<div class="app">
     <header class="header">
       <div>
@@ -483,8 +573,22 @@ function renderApp() {
       <button class="tab${tab==='players'?' active':''}" data-action="set-tab" data-tab="players">참가자</button>
       <button class="tab${tab==='settle'?' active':''}" data-action="set-tab" data-tab="settle">정산</button>
     </nav>
-    <main class="main">${tabHtml}</main>
-    ${playerMod}${gameMod}
+    <main class="main">${readonlyBanner}${tabHtml}</main>
+    ${playerMod}${gameMod}${pinMod}
+  </div>`;
+}
+
+function renderNewSessionModal() {
+  return `<div class="overlay-center">
+    <div class="modal-box">
+      <div class="sheet-title" style="margin-bottom:4px">새 세션 만들기</div>
+      <div class="sheet-sub">수정용 PIN 4자리를 정하세요.<br>중간에 자리를 비울 때 친구에게 알려주면 이어서 입력할 수 있습니다.</div>
+      <input id="newPinInput" class="inp-pin" type="tel" inputmode="numeric" maxlength="4" placeholder="••••" value="${esc(S.newPin)}" style="margin-bottom:14px">
+      <div class="act-btns">
+        <button class="act-cancel" data-action="close-new-session">취소</button>
+        <button class="act-ok" data-action="confirm-new-session">생성</button>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -499,12 +603,14 @@ function renderLoading() {
 function render() {
   let html;
   if (S.view==='loading') html = renderLoading();
-  else if (S.view==='sessions') html = renderSessionPicker();
+  else if (S.view==='sessions') html = renderSessionPicker() + (S.showNewModal ? renderNewSessionModal() : '');
   else html = renderApp();
   if (S.toast) html += `<div class="toast">${esc(S.toast)}</div>`;
   document.getElementById('root').innerHTML = html;
   const pInp=document.getElementById('pnameInp');
   if (pInp) { pInp.focus(); pInp.selectionStart=pInp.selectionEnd=pInp.value.length; }
+  const npInp=document.getElementById('newPinInput'); if (npInp) npInp.focus();
+  const piInp=document.getElementById('pinInput'); if (piInp) piInp.focus();
 }
 
 /* ── 이벤트 ─────────────────────────────────────────────────── */
@@ -512,11 +618,17 @@ document.addEventListener('click', function(e) {
   const t=e.target.closest('[data-action]'); if(!t) return;
   const {action,id,tab,side,team,bet,code}=t.dataset;
   switch(action) {
-    case 'new-session': createNewSession(); break;
+    case 'open-new-session': openNewSessionModal(); break;
+    case 'close-new-session': setState({showNewModal:false,newPin:''}); break;
+    case 'confirm-new-session': confirmNewSession(); break;
     case 'open-session': openSession(code); break;
     case 'retry-list': loadSessionList(); break;
     case 'leave': leaveSession(); break;
-    case 'set-tab': setState({tab,confirmReset:false}); break;
+    case 'set-tab': setState({tab,confirmReset:false,confirmDelete:false}); break;
+
+    case 'open-pin': openPinModal(); break;
+    case 'close-pin': setState({showPinModal:false,pinInput:''}); break;
+    case 'submit-pin': submitPin(); break;
 
     case 'open-add-player': setState({showP:true,pname:''}); break;
     case 'close-add-player': setState({showP:false,pname:''}); break;
@@ -560,6 +672,9 @@ document.addEventListener('click', function(e) {
     case 'show-reset': setState({confirmReset:true}); break;
     case 'cancel-reset': setState({confirmReset:false}); break;
     case 'do-reset': S.confirmReset=false; mutate({...S.sess,games:[]}); break;
+    case 'show-delete': setState({confirmDelete:true}); break;
+    case 'cancel-delete': setState({confirmDelete:false}); break;
+    case 'do-delete': doDeleteSession(); break;
   }
 });
 
@@ -568,15 +683,18 @@ document.addEventListener('input', function(e) {
   if (id==='pnameInp') S.pname=value;
   if (id==='ng-betInput') { const v=Math.max(0,parseInt(value)||0); S.ng={...S.ng,bet:v}; }
   if (id==='def-betInput') { const v=Math.max(0,parseInt(value)||0); mutate({...S.sess,defaultBet:v}); }
+  if (id==='newPinInput') { S.newPin=value.replace(/\D/g,'').slice(0,4); e.target.value=S.newPin; }
+  if (id==='pinInput') { S.pinInput=value.replace(/\D/g,'').slice(0,4); e.target.value=S.pinInput; }
 });
 
 document.addEventListener('keydown', function(e) {
   if (e.key!=='Enter') return;
   const {id}=e.target;
   if (id==='pnameInp') document.querySelector('[data-action="confirm-add-player"]')?.click();
+  if (id==='newPinInput') document.querySelector('[data-action="confirm-new-session"]')?.click();
+  if (id==='pinInput') document.querySelector('[data-action="submit-pin"]')?.click();
 });
 
-/* 페이지 떠날 때 폴링 정리 */
 window.addEventListener('beforeunload', stopPolling);
 
 /* ── 시작 ───────────────────────────────────────────────────── */
